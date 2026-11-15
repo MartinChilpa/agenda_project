@@ -47,11 +47,28 @@ class AppointmentSerializer(serializers.ModelSerializer):
             )
 
     def validate(self, attrs):
+        request = self.context.get('request')
+        customer_value = attrs.get('customer')
+
+        if request and request.user.is_authenticated and customer_value is not None:
+            customer_id = None
+            try:
+                customer_id = int(str(customer_value))
+            except (TypeError, ValueError):
+                customer_id = None
+
+            if customer_id is not None:
+                customer = Customer.objects.filter(pk=customer_id).first()
+                if customer is None:
+                    raise serializers.ValidationError({'customer': 'El cliente no existe.'})
+                if customer.provider_id != request.user.pk:
+                    raise serializers.ValidationError({'customer': 'Este cliente pertenece a otro profesional.'})
+                attrs['customer'] = customer.name
+
         instance = self.instance or Appointment()
         for field, value in attrs.items():
             setattr(instance, field, value)
 
-        request = self.context.get('request')
         if request and request.user.is_authenticated:
             instance.provider = request.user
 

@@ -18,8 +18,14 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 APP_ENV = os.getenv("APP_ENV", "local").strip().lower()
-env_filename = ".env.production" if APP_ENV == "production" else ".env"
-load_dotenv(BASE_DIR / env_filename, override=True)
+
+# Load local env first and only override it with production settings in production.
+if (BASE_DIR / ".env").exists():
+    load_dotenv(BASE_DIR / ".env", override=True)
+if APP_ENV == "production" and (BASE_DIR / ".env.production").exists():
+    load_dotenv(BASE_DIR / ".env.production", override=True)
+
+APP_ENV = os.getenv("APP_ENV", APP_ENV).strip().lower()
 
 DEBUG = os.getenv("DEBUG", "true" if APP_ENV == "local" else "false").strip().lower() in {
     "1",
@@ -28,10 +34,17 @@ DEBUG = os.getenv("DEBUG", "true" if APP_ENV == "local" else "false").strip().lo
     "on",
 }
 
+
 def get_csv(value, default):
     if value:
         return [item.strip() for item in value.split(",") if item.strip()]
     return default
+
+
+def get_bool(value, default):
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-dev-key")
@@ -46,7 +59,18 @@ CORS_ALLOWED_ORIGINS = get_csv(
     ],
 )
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+CSRF_TRUSTED_ORIGINS = [origin for origin in CORS_ALLOWED_ORIGINS if origin.startswith("https://")]
+CSRF_TRUSTED_ORIGINS += [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "None" if APP_ENV == "production" else "Lax")
+CSRF_COOKIE_SAMESITE = os.getenv("CSRF_COOKIE_SAMESITE", "None" if APP_ENV == "production" else "Lax")
+SESSION_COOKIE_SECURE = get_bool(os.getenv("SESSION_COOKIE_SECURE"), APP_ENV == "production")
+CSRF_COOKIE_SECURE = get_bool(os.getenv("CSRF_COOKIE_SECURE"), APP_ENV == "production")
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -160,6 +184,8 @@ REST_FRAMEWORK = {
 
 if APP_ENV == "production":
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = get_bool(os.getenv("SESSION_COOKIE_SECURE"), True)
+    CSRF_COOKIE_SECURE = get_bool(os.getenv("CSRF_COOKIE_SECURE"), True)
+    SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "None")
+    CSRF_COOKIE_SAMESITE = os.getenv("CSRF_COOKIE_SAMESITE", "None")
     

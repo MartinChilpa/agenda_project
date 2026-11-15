@@ -1,5 +1,6 @@
 from datetime import time
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.urls import reverse
@@ -9,6 +10,21 @@ from rest_framework.test import APITestCase
 from .models import Appointment, Customer, ServiceType
 
 User = get_user_model()
+
+
+class ProductionSecuritySettingsTests(APITestCase):
+    def test_production_auth_cookies_are_secure_for_cross_site_requests(self):
+        with self.settings(
+            APP_ENV='production',
+            SESSION_COOKIE_SAMESITE='None',
+            CSRF_COOKIE_SAMESITE='None',
+            SESSION_COOKIE_SECURE=True,
+            CSRF_COOKIE_SECURE=True,
+        ):
+            self.assertEqual(settings.SESSION_COOKIE_SAMESITE, 'None')
+            self.assertEqual(settings.CSRF_COOKIE_SAMESITE, 'None')
+            self.assertTrue(settings.SESSION_COOKIE_SECURE)
+            self.assertTrue(settings.CSRF_COOKIE_SECURE)
 
 
 class AgendaWorkspaceIsolationTests(APITestCase):
